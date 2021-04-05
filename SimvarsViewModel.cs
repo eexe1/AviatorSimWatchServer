@@ -330,6 +330,8 @@ namespace Simvars
 
             AddRequest("GPS WP BEARING", "radian");
             AddRequest("HSI BEARING", "degree");
+            AddRequest("ATTITUDE INDICATOR BANK DEGREES", "radian");
+            AddRequest("GPS WP NEXT ID", "string");
 
         }
 
@@ -365,6 +367,7 @@ namespace Simvars
                 if (iRequest == (uint)oSimvarRequest.eRequest && (!bObjectIDSelectionEnabled || iObject == m_iObjectIdRequest))
                 {
                     double dValue = (double)data.dwData[0];
+                    string dString = (string)data.dwData[0];
                     oSimvarRequest.dValue = dValue;
                     oSimvarRequest.bPending = false;
                     oSimvarRequest.bStillPending = false;
@@ -373,7 +376,8 @@ namespace Simvars
                     var dict = new Dictionary<string, dynamic>
                     {
                         {"key", oSimvarRequest.sName},
-                        {"value", dValue}
+                        {"value", dValue},
+                        {"string", dString}
                     };
 
                     watchServer.SendMessage(dict);
