@@ -7,6 +7,7 @@ namespace SimUtils
     {
         static public readonly string[] Names = new string[]
         {
+			"string",
 			"Frequency BCD32",
 			"inHg",
 			"ft/min",
@@ -360,6 +361,7 @@ namespace SimUtils
 		
 		static public readonly string[] UniqueNames = new string[]
         {
+			"string",
 			"meter",
 			"centimeter",
 			"kilometer",

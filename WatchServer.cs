@@ -40,7 +40,7 @@ namespace Simvars
 
         public void StartServer()
         {
-            wssv = new WebSocketServer(12345);
+            wssv = new WebSocketServer(64123);
             wssv.AddWebSocketService<Data>("/");
             wssv.Start();
             isConnected = true;

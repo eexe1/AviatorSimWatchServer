@@ -43,6 +43,8 @@ namespace Simvars
             set { this.SetProperty(ref m_bStillPending, value); }
         }
         private bool m_bStillPending = false;
+
+        public bool bSubscribed = false;
     };
 
     public class SimvarsViewModel : BaseViewModel, IBaseSimConnectWrapper
@@ -107,6 +109,7 @@ namespace Simvars
             {
                 oSimvarRequest.bPending = true;
                 oSimvarRequest.bStillPending = true;
+                oSimvarRequest.bSubscribed = false;
             }
         }
 
@@ -299,12 +302,18 @@ namespace Simvars
                 m_oSimConnect.OnRecvException += new SimConnect.RecvExceptionEventHandler(SimConnect_OnRecvException);
 
                 /// Catch a simobject data request
-                m_oSimConnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(SimConnect_OnRecvSimobjectDataBytype);
+                // m_oSimConnect.OnRecvSimobjectDataBytype += new SimConnect.RecvSimobjectDataBytypeEventHandler(SimConnect_OnRecvSimobjectDataBytype);
+                m_oSimConnect.OnRecvSimobjectData += new SimConnect.RecvSimobjectDataEventHandler(SimConnect_OnRecvSimobjectData);
             }
             catch (COMException ex)
             {
                 Console.WriteLine("Connection to KH failed: " + ex.Message);
             }
+        }
+
+        private void M_oSimConnect_OnRecvSimobjectData(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA data)
+        {
+            throw new NotImplementedException();
         }
 
         private void SimConnect_OnRecvOpen(SimConnect sender, SIMCONNECT_RECV_OPEN data)
@@ -328,10 +337,9 @@ namespace Simvars
             m_oTimer.Start();
             bOddTick = false;
 
-            AddRequest("GPS WP BEARING", "radian");
+            AddRequest("HEADING INDICATOR", "degree");
             AddRequest("HSI BEARING", "degree");
             AddRequest("ATTITUDE INDICATOR BANK DEGREES", "radian");
-            AddRequest("GPS WP NEXT ID", "string");
 
         }
 
@@ -367,7 +375,6 @@ namespace Simvars
                 if (iRequest == (uint)oSimvarRequest.eRequest && (!bObjectIDSelectionEnabled || iObject == m_iObjectIdRequest))
                 {
                     double dValue = (double)data.dwData[0];
-                    string dString = (string)data.dwData[0];
                     oSimvarRequest.dValue = dValue;
                     oSimvarRequest.bPending = false;
                     oSimvarRequest.bStillPending = false;
@@ -376,8 +383,38 @@ namespace Simvars
                     var dict = new Dictionary<string, dynamic>
                     {
                         {"key", oSimvarRequest.sName},
-                        {"value", dValue},
-                        {"string", dString}
+                        {"value", dValue}
+                    };
+
+                    watchServer.SendMessage(dict);
+                }
+            }
+        }
+
+        private void SimConnect_OnRecvSimobjectData(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA data)
+        {
+            Console.WriteLine("SimConnect_OnRecvSimobjectData");
+
+            uint iRequest = data.dwRequestID;
+            uint iObject = data.dwObjectID;
+            if (!lObjectIDs.Contains(iObject))
+            {
+                lObjectIDs.Add(iObject);
+            }
+            foreach (SimvarRequest oSimvarRequest in lSimvarRequests)
+            {
+                if (iRequest == (uint)oSimvarRequest.eRequest && (!bObjectIDSelectionEnabled || iObject == m_iObjectIdRequest))
+                {
+                    double dValue = (double)data.dwData[0];
+                    oSimvarRequest.dValue = dValue;
+                    oSimvarRequest.bPending = false;
+                    oSimvarRequest.bStillPending = false;
+
+                    // WatchServer sends to client
+                    var dict = new Dictionary<string, dynamic>
+                    {
+                        {"key", oSimvarRequest.sName},
+                        {"value", dValue}
                     };
 
                     watchServer.SendMessage(dict);
@@ -397,13 +434,34 @@ namespace Simvars
             {
                 if (!oSimvarRequest.bPending)
                 {
-                    m_oSimConnect?.RequestDataOnSimObjectType(oSimvarRequest.eRequest, oSimvarRequest.eDef, 0, m_eSimObjectType);
+                    // m_oSimConnect?.RequestDataOnSimObjectType(oSimvarRequest.eRequest, oSimvarRequest.eDef, 0, m_eSimObjectType);
                     oSimvarRequest.bPending = true;
                 }
                 else
                 {
                     oSimvarRequest.bStillPending = true;
                 }
+
+                if (bConnected && !oSimvarRequest.bSubscribed)
+                {
+                    m_oSimConnect?.RequestDataOnSimObject(oSimvarRequest.eRequest, oSimvarRequest.eDef, SimConnect.SIMCONNECT_OBJECT_ID_USER, SIMCONNECT_PERIOD.SECOND, SIMCONNECT_DATA_REQUEST_FLAG.CHANGED, 0, 0, 0);
+                    oSimvarRequest.bSubscribed = true;
+                }
+            }
+
+            var allSubscribed = true;
+            foreach (SimvarRequest simvarRequest in lSimvarRequests)
+            {
+                if (!simvarRequest.bSubscribed)
+                {
+                    allSubscribed = false;
+                    break;
+                }
+            }
+            if (allSubscribed)
+            {
+                m_oTimer.Stop();
+                bOddTick = false;
             }
         }
 
